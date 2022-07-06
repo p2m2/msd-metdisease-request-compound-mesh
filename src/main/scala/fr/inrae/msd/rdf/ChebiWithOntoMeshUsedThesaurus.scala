@@ -1,16 +1,12 @@
 package fr.inrae.msd.rdf
-import org.apache.jena.graph.{NodeFactory, Triple}
-import org.apache.jena.riot.Lang
 import net.sansa_stack.ml.spark.featureExtraction.SparqlFrame
 import net.sansa_stack.query.spark.SPARQLEngine
-import net.sansa_stack.query.spark.api.domain.ResultSetSpark
-import net.sansa_stack.query.spark.sparqlify.QueryEngineFactorySparqlify
-import net.sansa_stack.rdf.spark.io.RDFReader
-import net.sansa_stack.rdf.spark.model.TripleOperations
-import org.apache.spark.rdd.RDD
+import org.apache.jena.graph.{Node, NodeFactory, Triple}
 import org.apache.spark.sql.{Dataset, Encoder, Encoders, SparkSession}
 
-case object ChebiWithOntoMeshUsedThesaurus {
+import scala.util.{Failure, Success, Try}
+
+case class ChebiWithOntoMeshUsedThesaurus(spark : SparkSession) {
 
   val count_distinct_pmids_by_ChEBI = """
 select ?CHEBI ?count
@@ -65,37 +61,60 @@ where
     "chebi" -> "http://purl.obolibrary.org/obo/CHEBI_"
   )
 
-  def test1(spark : SparkSession) = {
-    val queryString =
-      prefixes.map { case (key,value) => "PREFIX "+key+":<"+value+"> "}.mkString("\n")+
-      """
-        |select distinct ?chebi where
-        |                                {
-        |                                    ?chebi rdfs:subClassOf+ chebi:24431 .
-        |                                    ?cid a+ ?chebi
-        |                                }
-        |                                group by ?chebi
-        |                                having(count (distinct ?cid) <= 1000 && count(distinct ?cid) > 1)
-        |                                order by ?chebi
-        |""".stripMargin
+  implicit val nodeEncoder: Encoder[Node] = Encoders.kryo(classOf[Node])
 
-    val meshPath = "./rdf/nlm/mesh/current_release/mesh.nt"
+  def getPrefixSparql : String = prefixes.map { case (key,value) => "PREFIX "+key+":<"+value+"> "}.mkString("\n")+"\n"
 
-    val chebiPath = "./rdf/ebi/chebi/current_release/chebi.owl"
+  def getChebiIDLinkedWithCIDLevel(triplesDataset : Dataset[Triple],
+                              level : Int = 1) : Dataset[Node]  = {
 
-    val triplesMesh : RDD[Triple] = spark.rdf(Lang.TURTLE)(chebiPath)
-    val triplesDataset : Dataset[Triple] = triplesMesh.toDS()
+    if ( level < 1) {
+      spark.emptyDataset[Node]
+    } else {
+      val listPredicates = Array.range(0, level)
+        .map(
+            x => s"?v$x rdfs:subClassOf ?v${x+1} ."
+        )
+        .mkString("\n")
+        .replace( s"?v${level}","chebi:24431" )
 
-    val sparqlFrame =
-      new SparqlFrame()
-        .setSparqlQuery(queryString)
-        .setQueryExcecutionEngine(SPARQLEngine.Sparqlify)
+      val queryString =
+        getPrefixSparql+
+          s"""select distinct ?v0 where {
+                $listPredicates
+                ?cid a ?v0 .
+            }""".stripMargin
 
-    implicit val enc: Encoder[String] = Encoders.STRING
+      println(queryString)
 
-    sparqlFrame.transform(triplesDataset).map(
-      row  => row.get(0).toString
-    ).rdd
+      val sparqlFrame =
+        new SparqlFrame()
+          .setSparqlQuery(queryString)
+          .setQueryExcecutionEngine(SPARQLEngine.Sparqlify)
+
+
+      Try(sparqlFrame.transform(triplesDataset).map(
+        row  => NodeFactory.createURI(row.get(0).toString)
+      )) match {
+        case Success(value) => value
+        case Failure(_) => spark.emptyDataset[Node]
+      }
+    }
+
   }
+
+  final def getChebiIDLinkedWithCID(
+                                   triplesDataset : Dataset[Triple],
+                                   maxDeepSearch : Int = 10,
+                                   currentDeep : Int = 1) : Dataset[Node] = {
+
+    if (maxDeepSearch < currentDeep ) {
+      spark.emptyDataset[Node]
+    } else {
+      val current : Dataset[Node] = getChebiIDLinkedWithCIDLevel(triplesDataset,currentDeep)
+      current.union(getChebiIDLinkedWithCID(triplesDataset,maxDeepSearch,currentDeep+1))
+    }
+  }
+
 
 }

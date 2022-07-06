@@ -1,24 +1,13 @@
 package fr.inrae.msd.rdf
 
-import fr.inrae.semantic_web.ProvenanceBuilder
+import net.sansa_stack.rdf.spark.io.RDFReader
+import net.sansa_stack.rdf.spark.model.TripleOperations
 import org.apache.jena.graph.Triple
 import org.apache.jena.riot.Lang
-import org.apache.spark.rdd.RDD
-import org.apache.spark.sql.{Dataset, Encoder, Encoders, SparkSession}
+import org.apache.spark.sql.{Dataset, SparkSession}
 
-import java.text.SimpleDateFormat
 import java.util.Date
 
-/**
- * https://services.pfem.clermont.inrae.fr/gitlab/forum/metdiseasedatabase/-/blob/develop/app/build/import_PMID_CID.py
- * build/import_PMID_CID.py
- *
- * example using corese rdf4j : https://notes.inria.fr/s/OB038LBLV
- */
-/*
-To avoid => Exception in thread "main" java.lang.NoSuchMethodError: scala.runtime.Statics.releaseFence()V
-can not extends App
- */
 object RequestCompoundBuilder extends App {
 
   import scopt.OParser
@@ -104,10 +93,24 @@ object RequestCompoundBuilder extends App {
              debug: Boolean) : Unit = {
 
     val startBuild = new Date()
+    val chebiPath        : String = "/rdf/ebi/chebi/13-Jun-2022/chebi.owl"
+    val compoundTypePath : String = "/rdf/pubchem/compound-general/2022-06-08/pc_compound_type.ttl"
 
-    ChebiWithOntoMeshUsedThesaurus.test1(spark)
+    val triplesDataset : Dataset[Triple] =
+      spark.rdf(Lang.RDFXML)(chebiPath).toDS()
+        .union(spark.rdf(Lang.TURTLE)(compoundTypePath).toDS())
+
+    ChebiWithOntoMeshUsedThesaurus(spark)
+      .getChebiIDLinkedWithCID(triplesDataset,20)
+      .write
+      .format("text")
+      .mode("overwrite")
+      .save("test_chebi_cid.txt")
+
+
+
     println("FIN")
-
+/*
     val contentProvenanceRDF : String =
       ProvenanceBuilder.provSparkSubmit(
       projectUrl ="https://github.com/p2m2/msd-metdisease-request-compound-mesh",
@@ -125,7 +128,7 @@ object RequestCompoundBuilder extends App {
       database="",
       version=Some("")).writeFile(spark,contentProvenanceRDF,"msd-metdisease-request-compound-mesh-test.ttl")
 
-    spark.close()
+    spark.close()*/
   }
 
 }

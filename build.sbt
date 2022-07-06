@@ -1,5 +1,3 @@
-import Dependencies._
-
 ThisBuild / scalaVersion     := "2.12.16"
 ThisBuild / version          := "0.1.0-SNAPSHOT"
 ThisBuild / organization     := "com.github.p2m2"
@@ -14,8 +12,9 @@ lazy val root = (project in file("."))
     name := "msd-metdisease-request-compound-mesh",
 
 		libraryDependencies ++= Seq(
-      scalaTest % Test,
-      "org.apache.spark" %% "spark-sql"  % sparkVersion % "provided,test",
+      "com.lihaoyi" %% "utest" % "0.8.0" % "test",
+      ("org.apache.spark" %% "spark-sql"  % sparkVersion % "provided,test")
+        .exclude("com.fasterxml.jackson","databind"),
       ("net.sansa-stack" %% "sansa-rdf-spark" % "0.8.0-RC3")
         .exclude("org.apache.zookeeper","zookeeper")
         .exclude("org.apache.avro","avro-mapred")
@@ -27,6 +26,9 @@ lazy val root = (project in file("."))
         .exclude("com.fasterxml.jackson","databind")
         .exclude("org.apache.hadoop","hadoop-common") % "test,provided"
       ,
+      "com.fasterxml.jackson.module" %% "jackson-module-scala" % "2.13.3" % "test",
+      "com.fasterxml.jackson.core" % "jackson-core" % "2.13.3" % "test",
+      "com.fasterxml.jackson.core" % "jackson-databind" % "2.13.3" % "test",
       "com.lihaoyi" %% "requests" % "0.7.1",
       "com.github.scopt" %% "scopt" % "4.0.1",
       "com.github.p2m2" %% "service-rdf-database-deployment" % "1.0.12"
@@ -44,7 +46,7 @@ lazy val root = (project in file("."))
       "Local Maven Repository" at "file://"+Path.userHome.absolutePath+"/.m2/repository",
       "Apache Staging" at "https://repository.apache.org/content/repositories/staging/"
     ),
-    Test / testOptions += Tests.Argument(TestFrameworks.ScalaTest, "-oD"),
+    testFrameworks += new TestFramework("utest.runner.Framework"),
     assembly / target := file("assembly"),
     assembly / assemblyJarName := s"msd-metdisease-request-compound-mesh.jar",
     assembly / logLevel := Level.Info,
