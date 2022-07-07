@@ -96,6 +96,9 @@ object RequestCompoundBuilder extends App {
     val chebiPath        : String = "/rdf/ebi/chebi/13-Jun-2022/chebi.owl"
     val compoundTypePath : String = "/rdf/pubchem/compound-general/2022-06-08/pc_compound_type.ttl"
 
+    // /rdf/pubchem/reference/2022-06-08/pc_reference2meshheading_000001.ttl ==> fabio:hasSubjectTerm
+    // mesh ==> meshv:hasDescriptor/meshv:treeNumber
+
     val triplesDataset : Dataset[Triple] =
       spark.rdf(Lang.RDFXML)(chebiPath).toDS()
         .union(spark.rdf(Lang.TURTLE)(compoundTypePath).toDS())

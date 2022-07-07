@@ -58,12 +58,84 @@ where
     "rdfs" -> "http://www.w3.org/2000/01/rdf-schema#",
     "owl" -> "http://www.w3.org/2002/07/owl#",
     "meshv" -> "http://id.nlm.nih.gov/mesh/vocab#",
-    "chebi" -> "http://purl.obolibrary.org/obo/CHEBI_"
+    "chebi" -> "http://purl.obolibrary.org/obo/CHEBI_",
+    "oboInOwl" -> "http://www.geneontology.org/formats/oboInOwl#"
   )
 
   implicit val nodeEncoder: Encoder[Node] = Encoders.kryo(classOf[Node])
 
   def getPrefixSparql : String = prefixes.map { case (key,value) => "PREFIX "+key+":<"+value+"> "}.mkString("\n")+"\n"
+
+  /**
+   * TODO Voir avec Maxime
+   * Impossible de retrouver la properiété "cito:isDiscussedBy"
+   *
+   * Dans le virtuoso de FORUM  la requete
+   *
+   * Apriori, on prend en compte seulement les Chebi qui type un composé
+   * Sachant la config des graphes du projet original :
+   * graph_from = https://forum.semantic-metabolomics.org/PMID_CID/2021
+             https://forum.semantic-metabolomics.org/PMID_CID_endpoints/2021
+             https://forum.semantic-metabolomics.org/PubChem/reference/2022-01-01
+             https://forum.semantic-metabolomics.org/MeSHRDF/2022-01-04
+             https://forum.semantic-metabolomics.org/PubChem/compound/2022-01-01
+             https://forum.semantic-metabolomics.org/ChEBI/2021-11-03
+
+  Ce sont surement des composés  PUBCHEM (CIDXXXXX) (à valider avec Maxime)
+
+  Questions : Peux t on utiliser la relation "cito:discusses"  entre un PMID et un CID à la place ?
+   *
+   *
+   * @param triplesDataset
+   * @return
+   */
+  def getChebiCount(triplesDataset : Dataset[Triple]) : Dataset[String]  = {
+    val queryString_complete =
+      getPrefixSparql+
+        s"""select (strafter(STR(?chebi),"http://purl.obolibrary.org/obo/CHEBI_") as ?CHEBI) (count(distinct ?pmid) as ?count)
+                where {
+                ?cid a ?chebi .
+                FILTER (strstarts(str(?chebi),"http://purl.obolibrary.org/obo/CHEBI_"))
+                ?cid cito:isDiscussedBy ?pmid .
+                { ?pmid fabio:hasSubjectTerm [ meshv:treeNumber ?tn ] .}
+                union
+                { ?pmid  fabio:hasSubjectTerm [ meshv:hasDescriptor [ meshv:treeNumber ?tn ] ] . }
+                FILTER(REGEX(?tn,"(C|A|D|G|B|F|I|J)")) .
+                ?mesh meshv:treeNumber ?tn .
+                ?mesh a meshv:TopicalDescriptor .
+                ?mesh meshv:active 1 .
+                ?cid a ?v0 .
+            } group by ?chebi""".stripMargin
+
+
+    val queryString =  """DEFINE input:inference "schema-inference-rules"
+                         PREFIX oboInOwl: <http://www.geneontology.org/formats/oboInOwl#>
+                         select (strafter(STR(?chebi),"http://purl.obolibrary.org/obo/CHEBI_") as ?CHEBI) ?chebi  ?cid
+                                         where {
+                                         ?cid a ?chebi .
+                                         FILTER (strstarts(str(?chebi),"http://purl.obolibrary.org/obo/CHEBI_"))
+                                        ?cid cito:isDiscussedBy ?pmid .
+                                     } limit 10""".stripMargin
+    println(queryString)
+
+    val sparqlFrame =
+      new SparqlFrame()
+        .setSparqlQuery(queryString)
+        .setQueryExcecutionEngine(SPARQLEngine.Sparqlify)
+
+        /*
+        val chebiPath="/rdf/ebi/chebi/13-Jun-2022/chebi.owl"
+        val compoundPath="/rdf/pubchem/compound-general/2022-06-08/pc_compound_type.ttl"
+        val pmid=""
+         */
+
+    Try(sparqlFrame.transform(triplesDataset).map(
+      row  => row.get(0).toString
+    )(Encoders.STRING)) match {
+      case Success(value) => value
+      case Failure(e) => throw e
+    }
+  }
 
   def getChebiIDLinkedWithCIDLevel(triplesDataset : Dataset[Triple],
                               level : Int = 1) : Dataset[Node]  = {
