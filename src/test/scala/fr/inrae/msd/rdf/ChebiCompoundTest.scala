@@ -10,27 +10,43 @@ import utest.{TestSuite, Tests, test}
 object ChebiCompoundTest extends TestSuite{
   val spark: SparkSession = Config.spark
 
+  val meshPath : String = "rdf/nlm/mesh/current_release/mesh.nt"
+  val meshVocabPath : String = "rdf/nlm/mesh/current_release/mesh.nt"
   val chebiPath        : String = "./rdf/ebi/chebi/current_release/chebi.owl"
   val compoundTypePath : String = "./rdf/pubchem/compound-general/current_release/pc_compound_type.ttl"
+  val referenceTypePath : String = "./rdf/pubchem/reference/current_release/pc_compound_type.ttl"
   val pmidCidPath : String = "./rdf/forum/DiseaseChem/PMID_CID/test_2022-07-07-105456/pmid_cid.ttl"
   val pmidCidEndpointPath : String = "./rdf/forum/DiseaseChem/PMID_CID/test_2022-07-07-105456/pmid_cid_endpoints.ttl"
+  val citoPath : String = "./rdf/vocabularies/cito.ttl"
+  val fabioPath : String = "./rdf/vocabularies/fabio.ttl"
 
   val triplesDataset : Dataset[Triple] =
     spark.rdf(Lang.RDFXML)(chebiPath).toDS()
       .union(spark.rdf(Lang.TURTLE)(compoundTypePath).toDS())
 
   val triplesDataset2 : Dataset[Triple] =
-    spark.rdf(Lang.TURTLE)(pmidCidPath).toDS()
-      .union(spark.rdf(Lang.TURTLE)(pmidCidEndpointPath).toDS())
-      .union(spark.rdf(Lang.TURTLE)(compoundTypePath).toDS())
+    spark
+      .rdf(Lang.TURTLE)(pmidCidPath).toDS()
+   //   .union(spark.rdf(Lang.TURTLE)(pmidCidEndpointPath).toDS())
+  //    .union(spark.rdf(Lang.TURTLE)(compoundTypePath).toDS())
+      .union(spark.rdf(Lang.TURTLE)(citoPath).toDS())
+      .union(spark.rdf(Lang.TURTLE)(fabioPath).toDS())
+   //   .union(spark.rdf(Lang.NT)(meshPath).toDS())
+      .cache()
 
-  val tests = Tests {
+  val tests: Tests = Tests {
 
      test("getSubjectFromRecursiveProperty Level base"){
+       val work = ChebiWithOntoMeshUsedThesaurus(spark)
       /*
        ChebiWithOntoMeshUsedThesaurus(spark)
          .getChebiIDLinkedWithCID(triplesDataset,4)*/
-       ChebiWithOntoMeshUsedThesaurus(spark).getChebiCount(triplesDataset2)
+      // work.getChebiCount(work.applyInferenceAndSaveTriplets(triplesDataset2,"owl_inf"))
+
+       ChebiWithOntoMeshUsedThesaurus(spark)
+         .applyInferenceAndSaveTriplets(triplesDataset2,"test")
+         .rdd
+         .saveAsNTriplesFile("./rdf/request/forum-inference-CHEBI-PMID.nt")
      }
   }
 }

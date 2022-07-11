@@ -56,6 +56,7 @@ object RequestCompoundBuilder extends App {
     .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     .config("spark.sql.crossJoin.enabled", "true")
     .config("spark.kryo.registrator","net.sansa_stack.rdf.spark.io.JenaKryoRegistrator")
+    .config("spark.kryoserializer.buffer.max.mb","1800")
     .getOrCreate()
 
 
@@ -93,26 +94,35 @@ object RequestCompoundBuilder extends App {
              debug: Boolean) : Unit = {
 
     val startBuild = new Date()
+    val meshPath : String = "/rdf/nlm/mesh/SHA_5a785145/mesh.nt"
+    val meshVocabPath : String = "/rdf/nlm/mesh-ontology/0.9.3/vocabulary_0.9.ttl"
     val chebiPath        : String = "/rdf/ebi/chebi/13-Jun-2022/chebi.owl"
     val compoundTypePath : String = "/rdf/pubchem/compound-general/2022-06-08/pc_compound_type.ttl"
+    val referenceTypePath : String = "/rdf/pubchem/reference/2022-06-08/pc_reference_type.ttl"
+    val pmidCidPath : String = "/rdf/forum/DiseaseChem/PMID_CID/2022-06-08_2022-07-07-090250/pmid_cid.ttl"
+    val pmidCidEndpointPath : String = "/rdf/forum/DiseaseChem/PMID_CID/2022-06-08_2022-07-07-090250/pmid_cid_endpoints.ttl"
+    val citoPath : String = "/rdf/sparontology/cito/2.8.1/cito.ttl"
+    val fabioPath : String = "/rdf/sparontology/fabio/2.1/fabio.ttl"
 
     // /rdf/pubchem/reference/2022-06-08/pc_reference2meshheading_000001.ttl ==> fabio:hasSubjectTerm
     // mesh ==> meshv:hasDescriptor/meshv:treeNumber
 
     val triplesDataset : Dataset[Triple] =
-      spark.rdf(Lang.RDFXML)(chebiPath).toDS()
+      spark.rdf(Lang.TURTLE)(pmidCidPath).toDS()
+        .union(spark.rdf(Lang.TURTLE)(pmidCidEndpointPath).toDS())
         .union(spark.rdf(Lang.TURTLE)(compoundTypePath).toDS())
+        .union(spark.rdf(Lang.TURTLE)(referenceTypePath).toDS())
+        .union(spark.rdf(Lang.TURTLE)(citoPath).toDS())
+        .union(spark.rdf(Lang.TURTLE)(fabioPath).toDS())
+        .union(spark.rdf(Lang.NT)(meshPath).toDS())
+        .union(spark.rdf(Lang.TURTLE)(meshVocabPath).toDS())
+        .union(spark.rdf(Lang.RDFXML)(chebiPath).toDS())
+        .cache()
 
     ChebiWithOntoMeshUsedThesaurus(spark)
-      .getChebiIDLinkedWithCID(triplesDataset,20)
-      .write
-      .format("text")
-      .mode("overwrite")
-      .save("test_chebi_cid.txt")
-
-
-
-    println("FIN")
+      .applyInferenceAndSaveTriplets(triplesDataset,"test")
+      .rdd
+      .saveAsNTriplesFile("/rdf-test/forum-inference-CHEBI-PMID.nt")
 /*
     val contentProvenanceRDF : String =
       ProvenanceBuilder.provSparkSubmit(

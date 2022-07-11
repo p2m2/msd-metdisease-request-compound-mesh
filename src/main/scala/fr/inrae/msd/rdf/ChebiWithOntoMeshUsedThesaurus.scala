@@ -1,6 +1,10 @@
 package fr.inrae.msd.rdf
+
+import net.sansa_stack.inference.rules.RDFSLevel
 import net.sansa_stack.ml.spark.featureExtraction.SparqlFrame
 import net.sansa_stack.query.spark.SPARQLEngine
+import net.sansa_stack.inference.spark.forwardchaining.triples.{ForwardRuleReasonerOWLHorst, ForwardRuleReasonerRDFS}
+import net.sansa_stack.rdf.spark.model.TripleOperations
 import org.apache.jena.graph.{Node, NodeFactory, Triple}
 import org.apache.spark.sql.{Dataset, Encoder, Encoders, SparkSession}
 
@@ -59,20 +63,27 @@ where
     "owl" -> "http://www.w3.org/2002/07/owl#",
     "meshv" -> "http://id.nlm.nih.gov/mesh/vocab#",
     "chebi" -> "http://purl.obolibrary.org/obo/CHEBI_",
-    "oboInOwl" -> "http://www.geneontology.org/formats/oboInOwl#"
+    "oboInOwl" -> "http://www.geneontology.org/formats/oboInOwl#",
+    "cito" -> "http://purl.org/spar/cito/",
+    "fabio"-> "http://purl.org/spar/fabio/"
   )
 
   implicit val nodeEncoder: Encoder[Node] = Encoders.kryo(classOf[Node])
 
   def getPrefixSparql : String = prefixes.map { case (key,value) => "PREFIX "+key+":<"+value+"> "}.mkString("\n")+"\n"
 
+  def applyInferenceAndSaveTriplets(triplesDataset : Dataset[Triple], idName : String): Dataset[Triple] = {
+
+    val t = new ForwardRuleReasonerOWLHorst(spark.sparkContext).apply(triplesDataset.rdd)
+    val r = new ForwardRuleReasonerRDFS(spark.sparkContext)
+    r.level = RDFSLevel.SIMPLE
+    val t2 = r.apply(t)
+
+    t2.toDS().cache()
+  }
+
   /**
    * TODO Voir avec Maxime
-   * Impossible de retrouver la properiété "cito:isDiscussedBy"
-   *
-   * Dans le virtuoso de FORUM  la requete
-   *
-   * Apriori, on prend en compte seulement les Chebi qui type un composé
    * Sachant la config des graphes du projet original :
    * graph_from = https://forum.semantic-metabolomics.org/PMID_CID/2021
              https://forum.semantic-metabolomics.org/PMID_CID_endpoints/2021
@@ -81,11 +92,6 @@ where
              https://forum.semantic-metabolomics.org/PubChem/compound/2022-01-01
              https://forum.semantic-metabolomics.org/ChEBI/2021-11-03
 
-  Ce sont surement des composés  PUBCHEM (CIDXXXXX) (à valider avec Maxime)
-
-  Questions : Peux t on utiliser la relation "cito:discusses"  entre un PMID et un CID à la place ?
-   *
-   *
    * @param triplesDataset
    * @return
    */
@@ -107,15 +113,24 @@ where
                 ?cid a ?v0 .
             } group by ?chebi""".stripMargin
 
+//DEFINE input:inference "schema-inference-rules"
+    /**
+     *  ?cid a ?chebi .
+        FILTER (strstarts(str(?chebi),"http://purl.obolibrary.org/obo/CHEBI_"))
+        ?cid cito:isDiscussedBy ?pmid .
+     */
+    val queryString =  getPrefixSparql+
+    """PREFIX oboInOwl: <http://www.geneontology.org/formats/oboInOwl#>
+       select ?chebi ?tn
+       where {
+        ?cid a ?chebi .
+        FILTER (strstarts(str(?chebi),"http://purl.obolibrary.org/obo/CHEBI_"))
+        ?cid cito:isDiscussedBy ?pmid .
+        { ?pmid fabio:hasSubjectTerm [ meshv:treeNumber ?tn ] .}
+                union
+        { ?pmid  fabio:hasSubjectTerm [ meshv:hasDescriptor [ meshv:treeNumber ?tn ] ] . }
+       } limit 10""".stripMargin
 
-    val queryString =  """DEFINE input:inference "schema-inference-rules"
-                         PREFIX oboInOwl: <http://www.geneontology.org/formats/oboInOwl#>
-                         select (strafter(STR(?chebi),"http://purl.obolibrary.org/obo/CHEBI_") as ?CHEBI) ?chebi  ?cid
-                                         where {
-                                         ?cid a ?chebi .
-                                         FILTER (strstarts(str(?chebi),"http://purl.obolibrary.org/obo/CHEBI_"))
-                                        ?cid cito:isDiscussedBy ?pmid .
-                                     } limit 10""".stripMargin
     println(queryString)
 
     val sparqlFrame =

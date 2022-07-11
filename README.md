@@ -56,9 +56,10 @@ popd
 ``` 
 spark-submit  \
  --deploy-mode cluster \
- --driver-memory 2G \
- --executor-memory 2G \
- --num-executors 10 \
+ --driver-memory 8G \
+ --executor-memory 28G \
+ --num-executors 4 \
+ --conf spark.sql.shuffle.partitions="300" \
  --conf spark.yarn.appMasterEnv.JAVA_HOME="/usr/local/openjdk/jdk-12.0.2+10/" \
  --conf spark.executorEnv.JAVA_HOME="/usr/local/openjdk/jdk-12.0.2+10/"  \
  --conf spark.yarn.submit.waitAppCompletion="false" \
