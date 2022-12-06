@@ -55,7 +55,7 @@ object RequestCompoundBuilder extends App {
     .appName("msd-metdisease-request-compound-mesh")
     .config("spark.serializer", "org.apache.spark.serializer.KryoSerializer")
     .config("spark.sql.crossJoin.enabled", "true")
-    .config("spark.kryo.registrator","net.sansa_stack.rdf.spark.io.JenaKryoRegistrator")
+    .config("spark.kryo.registrator","net.sansa_stack.rdf.spark.io.JenaKryoRegistrator,net.sansa_stack.query.spark.ontop.OntopKryoRegistrator,net.sansa_stack.query.spark.sparqlify.KryoRegistratorSparqlify")
     .config("spark.kryoserializer.buffer.max.mb","1800")
     .getOrCreate()
 
