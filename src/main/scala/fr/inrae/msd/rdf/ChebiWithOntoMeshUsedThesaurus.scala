@@ -74,7 +74,7 @@ where
 
   def applyInferenceAndSaveTriplets(triplesDataset : Dataset[Triple], idName : String): Dataset[Triple] = {
 
-    val t = new ForwardRuleReasonerOWLHorst(spark.sparkContext).apply(triplesDataset.rdd)
+    val t = new ForwardRuleReasonerOWLHorst(spark.sparkContext,50).apply(triplesDataset.rdd)
     //val r = new ForwardRuleReasonerRDFS(spark.sparkContext)
     //r.level = RDFSLevel.SIMPLE
     //val t2 = r.apply(t)

@@ -118,9 +118,10 @@ object RequestCompoundBuilder extends App {
         .union(spark.rdf(Lang.TURTLE)(meshVocabPath).toDS())
         .union(spark.rdf(Lang.RDFXML)(chebiPath).toDS())
         .cache()
-
+    
+    val triplesDatasetRepartition = triplesDataset.repartition(500)
     ChebiWithOntoMeshUsedThesaurus(spark)
-      .applyInferenceAndSaveTriplets(triplesDataset,"test")
+      .applyInferenceAndSaveTriplets(triplesDatasetRepartition,"test")
       .rdd
       .saveAsNTriplesFile("/rdf-test/forum-inference-CHEBI-PMID.nt")
 /*
