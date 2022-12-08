@@ -6,6 +6,7 @@ import net.sansa_stack.query.spark.SPARQLEngine
 import net.sansa_stack.inference.spark.forwardchaining.triples.{ForwardRuleReasonerOWLHorst, ForwardRuleReasonerRDFS}
 import net.sansa_stack.rdf.spark.model.TripleOperations
 import org.apache.jena.graph.{Node, NodeFactory, Triple}
+import org.apache.spark.rdd.RDD
 import org.apache.spark.sql.{Dataset, Encoder, Encoders, SparkSession}
 
 import scala.util.{Failure, Success, Try}
@@ -72,14 +73,14 @@ where
 
   def getPrefixSparql : String = prefixes.map { case (key,value) => "PREFIX "+key+":<"+value+"> "}.mkString("\n")+"\n"
 
-  def applyInferenceAndSaveTriplets(triplesDataset : Dataset[Triple], idName : String): Dataset[Triple] = {
+  def applyInferenceAndSaveTriplets(triples : RDD[Triple], idName : String): RDD[Triple] = {
 
-    val t = new ForwardRuleReasonerOWLHorst(spark.sparkContext).apply(triplesDataset.rdd)
+    val t = new ForwardRuleReasonerOWLHorst(spark.sparkContext).apply(triples)
     //val r = new ForwardRuleReasonerRDFS(spark.sparkContext)
     //r.level = RDFSLevel.SIMPLE
     //val t2 = r.apply(t)
 
-    t.toDS().cache()
+    t.toDS().repartition(10000).rdd
   }
 
   /**

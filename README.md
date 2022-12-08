@@ -67,6 +67,23 @@ spark-submit  \
  msd-metdisease-request-compound-mesh.jar
 ```
 
+``` 
+spark-submit  \
+ --name DatalakeRdfForum \
+ --deploy-mode cluster \
+ --conf spark.executor.memoryOverhead="4g" \
+ --conf spark.shuffle.memoryFraction="0" \
+ --conf spark.memory.storageFraction="0.3" \
+ --conf spark.sql.shuffle.partitions="100" \
+ --executor-memory 2g \
+ --num-executors 48 \
+ --conf spark.yarn.appMasterEnv.JAVA_HOME="/usr/local/openjdk/jdk-12.0.2+10/" \
+ --conf spark.executorEnv.JAVA_HOME="/usr/local/openjdk/jdk-12.0.2+10/"  \
+ --conf spark.yarn.submit.waitAppCompletion="false" \
+ --jars /usr/share/java/sansa-stack-spark_2.12-0.8.4_ExDistAD.jar \
+ msd-metdisease-request-compound-mesh.jar
+```
+
 
 ``` 
 sbt -J-Xmx2G -J-Xms2G
