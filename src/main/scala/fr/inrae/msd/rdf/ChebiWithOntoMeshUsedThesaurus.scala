@@ -80,7 +80,7 @@ where
     //r.level = RDFSLevel.SIMPLE
     //val t2 = r.apply(t)
 
-    t.toDS().repartition(10000).rdd
+    t.toDS().coalesce(64).rdd
   }
 
   /**

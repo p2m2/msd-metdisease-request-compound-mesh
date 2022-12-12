@@ -104,8 +104,8 @@ object RequestCompoundBuilder extends App {
     val chebiPath        : String = s"$rootMsdDirectory/ebi/chebi/13-Jun-2022/chebi.owl"
     val compoundTypePath : String = s"$rootMsdDirectory/pubchem/compound-general/2022-06-08/pc_compound_type.ttl"
     val referenceTypePath : String = s"$rootMsdDirectory/pubchem/reference/2022-06-08/pc_reference_type.ttl"
-    val pmidCidPath : String = s"$rootMsdDirectory/forum/DiseaseChem/PMID_CID/2022-06-08_2022-07-07-090250/pmid_cid.ttl"
-    val pmidCidEndpointPath : String = s"$rootMsdDirectory/forum/DiseaseChem/PMID_CID/2022-06-08_2022-07-07-090250/pmid_cid_endpoints.ttl"
+    val pmidCidPath : String = s"$rootMsdDirectory/forum/DiseaseChem/PMID_CID/2022-06-08_2022-07-07-090250/pmid_cid_partition_40.ttl"
+    val pmidCidEndpointPath : String = s"$rootMsdDirectory/forum/DiseaseChem/PMID_CID/2022-06-08_2022-07-07-090250/pmid_cid_endpoints_partition_64.ttl"
     val citoPath : String = s"$rootMsdDirectory/sparontology/cito/2.8.1/cito.ttl"
     val fabioPath : String = s"$rootMsdDirectory/sparontology/fabio/2.1/fabio.ttl"
 
@@ -113,8 +113,8 @@ object RequestCompoundBuilder extends App {
     // mesh ==> meshv:hasDescriptor/meshv:treeNumber
 
     val triples : RDD[Triple] =
-      spark.rdf(Lang.TURTLE)(pmidCidPath)
-          .union(spark.rdf(Lang.TURTLE)(pmidCidEndpointPath))
+      spark.rdf(Lang.NTRIPLES)(pmidCidPath)
+          .union(spark.rdf(Lang.NTRIPLES)(pmidCidEndpointPath))
           .union(spark.rdf(Lang.TURTLE)(compoundTypePath))
           .union(spark.rdf(Lang.TURTLE)(referenceTypePath))
           .union(spark.rdf(Lang.TURTLE)(citoPath))
@@ -125,7 +125,7 @@ object RequestCompoundBuilder extends App {
 
     ChebiWithOntoMeshUsedThesaurus(spark)
       .applyInferenceAndSaveTriplets(triples,"test")
-      .saveAsNTriplesFile("/rdf-test/forum-inference-CHEBI-PMID.nt",mode=SaveMode.Overwrite)
+      .saveAsNTriplesFile("/rdf-test/forum-inference-CHEBI-PMID_partitionsTest.nt",mode=SaveMode.Overwrite)
 /*
     val contentProvenanceRDF : String =
       ProvenanceBuilder.provSparkSubmit(
